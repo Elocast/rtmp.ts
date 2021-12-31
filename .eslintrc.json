@@ -1,0 +1,54 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "extends": [
+    "prettier"
+  ],
+  "plugins": [
+    "@typescript-eslint",
+    "prettier"
+  ],
+  "env": {
+    "node": true,
+    "commonjs": true
+  },
+  "reportUnusedDisableDirectives": true,
+  "rules": {
+    "@typescript-eslint/camelcase": 0,
+    "@typescript-eslint/no-non-null-assertion": 0,
+    "@typescript-eslint/no-var-requires": 0,
+    "@typescript-eslint/no-explicit-any": 0,
+    "@typescript-eslint/no-inferrable-types": 0,
+    "brace-style": [
+      "error",
+      "1tbs"
+    ],
+    "semi": 2,
+    "camelcase": 0,
+    "curly": [2, "all"],
+    "max-classes-per-file": ["error", 5],
+    "max-len": [
+      "error",
+      {
+        "ignoreTrailingComments": true,
+        "ignoreTemplateLiterals": true,
+        "ignoreStrings": true,
+        "ignoreComments": true,
+        "code": 140,
+        "tabWidth": 2,
+        "ignoreRegExpLiterals": true
+      }
+    ],
+    "no-param-reassign": ["error", { "props": false }],
+    "no-plusplus": ["error", { "allowForLoopAfterthoughts": true }],
+    "no-undef": [2]
+  },
+  "globals": {
+    "before": true,
+    "beforeEach": true,
+    "after": true,
+    "describe": true,
+    "it": true,
+    "chai": true,
+    "expect": true
+  }
+}
