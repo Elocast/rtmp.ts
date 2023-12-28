@@ -21,8 +21,8 @@
     "dotenv": "^8.2.0",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^3.3.2",
     "request": "^2.88.2",
-    "request-promise-native": "^1.0.9",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
@@ -32,7 +32,6 @@
     "@types/jsonwebtoken": "^8.5.0",
     "@types/mocha": "^8.2.0",
     "@types/node": "^14.14.10",
-    "@types/request-promise-native": "^1.0.17",
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.8.2",
     "@typescript-eslint/parser": "^4.8.2",

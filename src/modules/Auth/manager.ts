@@ -1,4 +1,4 @@
-import request from 'request-promise-native';
+import fetch from 'node-fetch';
 
 import JWT from '../../support/jwt';
 
@@ -29,6 +29,7 @@ export class Auth {
   private async buildHeaders() {
     const headers: Record<string, string> = {};
     headers['x-server-codename'] = this.config.serverId;
+    headers['Content-Type'] = 'application/json';
 
     if (this.config.jwt_key) {
       const token = await JWT.sign(this.config.auth, { serverId: this.config.serverId });
@@ -45,31 +46,37 @@ export class Auth {
       const key = path.split('/')[2];
       const headers = await this.buildHeaders();
 
-      const resp = await request.post({
-        url: `https://${this.config.auth.api_url}/stream/`,
+      const url = `https://${this.config.auth.api_url}/stream/`;
+      const resp = await fetch(url, {
+        method: 'post',
+        body: JSON.stringify({ key }),
         headers,
-        body: { key },
-        json: true
       });
 
-      if (resp.success) {
+      const respData = await resp.json() as { data: string };
+
+      if (respData.data) {
         const sessionObj = {
           connection: {
             path,
             args: '',
-            sId: resp.data,
+            sId: respData.data,
           },
           timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
         };
 
         this.sessions.set(key, sessionObj);
-      }
 
-      return resp;
+        return {
+          success: true,
+          data: respData.data,
+        };
+      }
     } catch (err: unknown) {
       console.log(`[AUTH][postNewStream] request failed`, err);
-      return {};
     }
+
+    return {};
   }
 
   async postPauseStream(path: string): Promise<void> {
@@ -85,13 +92,13 @@ export class Auth {
 
     try {
       const headers = await this.buildHeaders();
-      await request.post({
-        url: `https://${this.config.auth.api_url}/stream/done`,
-        headers,
-        body: { key },
-        json: true
-      });
 
+      const url = `https://${this.config.auth.api_url}/stream/done`;
+      await fetch(url, {
+        method: 'post',
+        body: JSON.stringify({ key }),
+        headers,
+      });
     } catch(err: unknown) {
       console.log('[AUTH][postPauseStream] request failed', err);
     }
@@ -102,17 +109,17 @@ export class Auth {
   async onValidateLoop(key: string): Promise<void> {
     try {
       const headers = await this.buildHeaders();
-      const resp = await request.post({
-        url: `https://${this.config.auth.api_url}/stream/validate`,
+
+      const url = `https://${this.config.auth.api_url}/stream/validate`;
+      const resp = await fetch(url, {
+        method: 'post',
+        body: JSON.stringify({ key }),
         headers,
-        body: { key },
-        json: true
-      })
-        .then(() => ({ success: true }));
+      });
 
       const session = this.sessions.get(key);
 
-      if (!resp.success) {
+      if (resp.status >= 400) {
         if (session) {
           this.RTMPSessionManager.destroy(session.connection.path);
           this.sessions.delete(key);
