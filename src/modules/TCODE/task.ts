@@ -47,13 +47,13 @@ export class TCODETask {
   }
 
   async preUp(): Promise<void> {
-    const streamNameSplit = this.params.streamName.split('_')
+    const streamNameSplit = this.params.streamName.split('_');
 
     const variables = {
       '{STREAM_DIR}': streamNameSplit[0],
       '{SEGMENT_DIR}': `s${streamNameSplit[2]}_${streamNameSplit[1]}`,
       '{RTMP_OUTPUT_PATH}': this.config.output_path
-    }
+    };
 
     const outputPath = this.task.output_path
       .replace('{RTMP_OUTPUT_PATH}', variables['{RTMP_OUTPUT_PATH}'])

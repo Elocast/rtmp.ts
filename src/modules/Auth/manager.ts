@@ -26,36 +26,50 @@ export class Auth {
     this.sessions = new Map();
   }
 
-  async postNewStream(path: string): Promise<PublishSuccessResponse|{}> {
-    const key = path.split('/')[2];
-    //const token = await JWT.sign(this.config.auth, { serverId: this.config.serverId });
+  private async buildHeaders() {
+    const headers: Record<string, string> = {};
+    headers['x-server-codename'] = this.config.serverId;
 
-    const resp = await request.post({
-      url: `https://${this.config.auth.api_url}/stream/`,
-      headers: {
-        //'X-RTMP-Auth': token,
-        'x-server-codename': this.config.serverId
-      },
-      body: { key },
-      json: true
-    })
-      .then((res: any) => ({ success: true, data: res }))
-      .catch(() => Promise.resolve({}));
-
-    if (resp.success) {
-      const sessionObj = {
-        connection: {
-          path,
-          args: '',
-          sId: resp.data,
-        },
-        timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
-      };
-
-      this.sessions.set(key, sessionObj);
+    if (this.config.jwt_key) {
+      const token = await JWT.sign(this.config.auth, { serverId: this.config.serverId });
+      if (token) {
+        headers['X-RTMP-Auth'] = token;
+      }
     }
 
-    return resp;
+    return headers;
+  }
+
+  async postNewStream(path: string): Promise<PublishSuccessResponse|{}> {
+    try {
+      const key = path.split('/')[2];
+      const headers = await this.buildHeaders();
+
+      const resp = await request.post({
+        url: `https://${this.config.auth.api_url}/stream/`,
+        headers,
+        body: { key },
+        json: true
+      });
+
+      if (resp.success) {
+        const sessionObj = {
+          connection: {
+            path,
+            args: '',
+            sId: resp.data,
+          },
+          timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
+        };
+
+        this.sessions.set(key, sessionObj);
+      }
+
+      return resp;
+    } catch (err: unknown) {
+      console.log(`[AUTH][postNewStream] request failed`, err);
+      return {};
+    }
   }
 
   async postPauseStream(path: string): Promise<void> {
@@ -69,56 +83,55 @@ export class Auth {
 
     clearTimeout(session.timer);
 
-    //const token = await JWT.sign(this.config.auth, { serverId: this.config.serverId });
-    await request.post({
-      url: `https://${this.config.auth.api_url}/stream/done`,
-      headers: {
-        //'X-RTMP-Auth': token
-        'x-server-codename': this.config.serverId
-      },
-      body: { key },
-      json: true
-    })
-      // prevents unhandled promise error/crash
-      .catch(() => Promise.resolve({}));
+    try {
+      const headers = await this.buildHeaders();
+      await request.post({
+        url: `https://${this.config.auth.api_url}/stream/done`,
+        headers,
+        body: { key },
+        json: true
+      });
+
+    } catch(err: unknown) {
+      console.log('[AUTH][postPauseStream] request failed', err);
+    }
 
     this.sessions.delete(key);
   }
 
   async onValidateLoop(key: string): Promise<void> {
-    //const token = await JWT.sign(this.config.auth, { serverId: this.config.serverId });
+    try {
+      const headers = await this.buildHeaders();
+      const resp = await request.post({
+        url: `https://${this.config.auth.api_url}/stream/validate`,
+        headers,
+        body: { key },
+        json: true
+      })
+        .then(() => ({ success: true }));
 
-    const resp = await request.post({
-      url: `https://${this.config.auth.api_url}/stream/validate`,
-      headers: {
-        //'X-RTMP-Auth': token,
-        'x-server-codename': this.config.serverId
-      },
-      body: { key },
-      json: true
-    })
-      .then((res: any) => ({ success: true }))
-      .catch(() => Promise.resolve({}));
+      const session = this.sessions.get(key);
 
-    const session = this.sessions.get(key);
+      if (!resp.success) {
+        if (session) {
+          this.RTMPSessionManager.destroy(session.connection.path);
+          this.sessions.delete(key);
+          return;
+        }
+      } else {
+        const sessionObj = {
+          connection: {
+            path: session?.connection?.path || `/live/${key}`,
+            args: session?.connection?.args || '',
+            sId: session?.connection?.sId || ''
+          },
+          timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
+        };
 
-    if (!resp.success) {
-      if (session) {
-        this.RTMPSessionManager.destroy(session.connection.path);
-        this.sessions.delete(key);
-        return;
+        this.sessions.set(key, sessionObj);
       }
-    } else {
-      const sessionObj = {
-        connection: {
-          path: session?.connection?.path || `/live/${key}`,
-          args: session?.connection?.args || '',
-          sId: session?.connection?.sId
-        },
-        timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
-      };
-
-      this.sessions.set(key, sessionObj);
+    } catch(err: unknown) {
+      console.log(`[AUTH][onValidateLoop] request failed`, err);
     }
   }
 
