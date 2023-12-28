@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import axios from 'axios';
 
 import JWT from '../../support/jwt';
 
@@ -29,7 +29,6 @@ export class Auth {
   private async buildHeaders() {
     const headers: Record<string, string> = {};
     headers['x-server-codename'] = this.config.serverId;
-    headers['Content-Type'] = 'application/json';
 
     if (this.config.jwt_key) {
       const token = await JWT.sign(this.config.auth, { serverId: this.config.serverId });
@@ -46,21 +45,19 @@ export class Auth {
       const key = path.split('/')[2];
       const headers = await this.buildHeaders();
 
-      const url = `https://${this.config.auth.api_url}/stream/`;
-      const resp = await fetch(url, {
+      const resp = await axios({
+        url: `https://${this.config.auth.api_url}/stream/`,
         method: 'post',
-        body: JSON.stringify({ key }),
+        data: { key },
         headers,
       });
 
-      const respData = await resp.json() as { data: string };
-
-      if (respData.data) {
+      if (resp.data.data) {
         const sessionObj = {
           connection: {
             path,
             args: '',
-            sId: respData.data,
+            sId: resp.data,
           },
           timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
         };
@@ -69,7 +66,7 @@ export class Auth {
 
         return {
           success: true,
-          data: respData.data,
+          data: resp.data,
         };
       }
     } catch (err: unknown) {
@@ -93,10 +90,10 @@ export class Auth {
     try {
       const headers = await this.buildHeaders();
 
-      const url = `https://${this.config.auth.api_url}/stream/done`;
-      await fetch(url, {
+      await axios({
         method: 'post',
-        body: JSON.stringify({ key }),
+        url: `https://${this.config.auth.api_url}/stream/done`,
+        data: { key },
         headers,
       });
     } catch(err: unknown) {
@@ -107,38 +104,35 @@ export class Auth {
   }
 
   async onValidateLoop(key: string): Promise<void> {
+    const session = this.sessions.get(key);
+
     try {
       const headers = await this.buildHeaders();
 
-      const url = `https://${this.config.auth.api_url}/stream/validate`;
-      const resp = await fetch(url, {
+      await axios({
         method: 'post',
-        body: JSON.stringify({ key }),
+        url: `https://${this.config.auth.api_url}/stream/validate`,
+        data: { key },
         headers,
       });
 
-      const session = this.sessions.get(key);
+      const sessionObj = {
+        connection: {
+          path: session?.connection?.path || `/live/${key}`,
+          args: session?.connection?.args || '',
+          sId: session?.connection?.sId || ''
+        },
+        timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
+      };
 
-      if (resp.status >= 400) {
-        if (session) {
-          this.RTMPSessionManager.destroy(session.connection.path);
-          this.sessions.delete(key);
-          return;
-        }
-      } else {
-        const sessionObj = {
-          connection: {
-            path: session?.connection?.path || `/live/${key}`,
-            args: session?.connection?.args || '',
-            sId: session?.connection?.sId || ''
-          },
-          timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
-        };
-
-        this.sessions.set(key, sessionObj);
-      }
+      this.sessions.set(key, sessionObj);
     } catch(err: unknown) {
       console.log(`[AUTH][onValidateLoop] request failed`, err);
+
+      if (session) {
+        this.RTMPSessionManager.destroy(session.connection.path);
+        this.sessions.delete(key);
+      }
     }
   }
 
