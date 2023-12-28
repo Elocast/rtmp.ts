@@ -11,10 +11,10 @@ interface Config {
   jwt_key: string;
 }
 
-export async function sign(config: Config, payload: JWTPayload): Promise<string | null | undefined> {
+export async function sign(config: Config, payload: JWTPayload): Promise<string|undefined> {
   const expiresIn: number = config.jwt_max_age / 1000; // Convert from milliseconds to seconds
 
-  return new Promise<string | null | undefined>((resolve) => {
+  return new Promise<string | undefined>((resolve, reject) => {
     JWT.sign(
       payload,
       config.jwt_key,
@@ -24,7 +24,7 @@ export async function sign(config: Config, payload: JWTPayload): Promise<string 
       },
       (err: Error | null, encoded: string | undefined) => {
         if (err) {
-          resolve(null);
+          reject(err);
         } else {
           resolve(encoded);
         }
