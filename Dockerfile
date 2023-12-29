@@ -1,9 +1,9 @@
-FROM node:13-slim AS base
+FROM node:20-slim AS base
 
 # update
 RUN apt-get update -yq && \
     apt-get upgrade -yq && \
-    apt-get install -yq curl
+    apt-get install -yq curl xz-utils
 
 # install ffmpeg
 RUN curl -O https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz; \

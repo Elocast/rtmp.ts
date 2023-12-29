@@ -34,7 +34,7 @@ describe('.postNewAttempt()', () => {
     nock(`https://${config.auth.api_url}`)
       .post(
         '/stream/',
-        body => body.key === authDetails.success.key
+        body => body.key === authDetails.success.key,
       )
       .reply(200, { data: '1' });
 

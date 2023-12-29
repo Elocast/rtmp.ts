@@ -1,4 +1,4 @@
-import request from 'request-promise-native';
+import axios from 'axios';
 
 import JWT from '../../support/jwt';
 
@@ -45,14 +45,14 @@ export class Auth {
       const key = path.split('/')[2];
       const headers = await this.buildHeaders();
 
-      const resp = await request.post({
+      const resp = await axios({
         url: `https://${this.config.auth.api_url}/stream/`,
+        method: 'post',
+        data: { key },
         headers,
-        body: { key },
-        json: true
       });
 
-      if (resp.success) {
+      if (resp.data.data) {
         const sessionObj = {
           connection: {
             path,
@@ -63,13 +63,17 @@ export class Auth {
         };
 
         this.sessions.set(key, sessionObj);
-      }
 
-      return resp;
+        return {
+          success: true,
+          data: resp.data,
+        };
+      }
     } catch (err: unknown) {
       console.log(`[AUTH][postNewStream] request failed`, err);
-      return {};
     }
+
+    return {};
   }
 
   async postPauseStream(path: string): Promise<void> {
@@ -85,13 +89,13 @@ export class Auth {
 
     try {
       const headers = await this.buildHeaders();
-      await request.post({
-        url: `https://${this.config.auth.api_url}/stream/done`,
-        headers,
-        body: { key },
-        json: true
-      });
 
+      await axios({
+        method: 'post',
+        url: `https://${this.config.auth.api_url}/stream/done`,
+        data: { key },
+        headers,
+      });
     } catch(err: unknown) {
       console.log('[AUTH][postPauseStream] request failed', err);
     }
@@ -100,38 +104,35 @@ export class Auth {
   }
 
   async onValidateLoop(key: string): Promise<void> {
+    const session = this.sessions.get(key);
+
     try {
       const headers = await this.buildHeaders();
-      const resp = await request.post({
+
+      await axios({
+        method: 'post',
         url: `https://${this.config.auth.api_url}/stream/validate`,
+        data: { key },
         headers,
-        body: { key },
-        json: true
-      })
-        .then(() => ({ success: true }));
+      });
 
-      const session = this.sessions.get(key);
+      const sessionObj = {
+        connection: {
+          path: session?.connection?.path || `/live/${key}`,
+          args: session?.connection?.args || '',
+          sId: session?.connection?.sId || ''
+        },
+        timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
+      };
 
-      if (!resp.success) {
-        if (session) {
-          this.RTMPSessionManager.destroy(session.connection.path);
-          this.sessions.delete(key);
-          return;
-        }
-      } else {
-        const sessionObj = {
-          connection: {
-            path: session?.connection?.path || `/live/${key}`,
-            args: session?.connection?.args || '',
-            sId: session?.connection?.sId || ''
-          },
-          timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
-        };
-
-        this.sessions.set(key, sessionObj);
-      }
+      this.sessions.set(key, sessionObj);
     } catch(err: unknown) {
       console.log(`[AUTH][onValidateLoop] request failed`, err);
+
+      if (session) {
+        this.RTMPSessionManager.destroy(session.connection.path);
+        this.sessions.delete(key);
+      }
     }
   }
 
