@@ -5,9 +5,9 @@ require('dotenv').config({
 
 const config = {
   serverId: process.env.SERVER_ID || 'wawel',
-  http_port: process.env.HTTP_PORT || 80,
+  http_port: process.env.HTTP_PORT || 8080,
   shell: process.env.SHELL_PATH || '/bin/bash',
-  output_path: process.env.OUTPUT_PATH || '/var/media',
+  output_path: process.env.OUTPUT_PATH || './media',
   auth: {
     validate_interval: 30,
     jwt_key: process.env.JWT_KEY,
