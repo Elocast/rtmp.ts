@@ -75,7 +75,6 @@ describe('NULL', () => {
 
   it('encode', () => {
     output = AMF0.encode(value);
-    console.log(output);
     chai.assert.equal(output[0], AMF0Types.NULL);
   });
 

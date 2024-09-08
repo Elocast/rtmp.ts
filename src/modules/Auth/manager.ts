@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosResponse } from 'axios';
 
 import JWT from '../../support/jwt';
 
@@ -41,36 +42,39 @@ export class Auth {
   }
 
   async postNewStream(path: string): Promise<PublishSuccessResponse|{}> {
-    try {
-      const key = path.split('/')[2];
-      const headers = await this.buildHeaders();
+    const key = path.split('/')[2];
+    const headers = await this.buildHeaders();
 
-      const resp = await axios({
+    let resp: AxiosResponse;
+    try {
+      resp = await axios({
         url: `https://${this.config.auth.api_url}/stream/`,
         method: 'post',
         data: { key },
         headers,
       });
-
-      if (resp.data.data) {
-        const sessionObj = {
-          connection: {
-            path,
-            args: '',
-            sId: resp.data,
-          },
-          timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
-        };
-
-        this.sessions.set(key, sessionObj);
-
-        return {
-          success: true,
-          data: resp.data,
-        };
-      }
     } catch (err: unknown) {
-      console.log(`[AUTH][postNewStream] request failed`, err);
+      const finalErr = axios.isAxiosError(err) ? err.toJSON() : err;
+      console.log(`[AUTH][postNewStream] request failed`, finalErr);
+      return {};
+    }
+
+    if (resp.data.data) {
+      const sessionObj = {
+        connection: {
+          path,
+          args: '',
+          sId: resp.data,
+        },
+        timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
+      };
+
+      this.sessions.set(key, sessionObj);
+
+      return {
+        success: true,
+        data: resp.data,
+      };
     }
 
     return {};
@@ -96,8 +100,9 @@ export class Auth {
         data: { key },
         headers,
       });
-    } catch(err: unknown) {
-      console.log('[AUTH][postPauseStream] request failed', err);
+    } catch (err: unknown) {
+      const finalErr = axios.isAxiosError(err) ? err.toJSON() : err;
+      console.log('[AUTH][postPauseStream] request failed', finalErr);
     }
 
     this.sessions.delete(key);
@@ -115,25 +120,27 @@ export class Auth {
         data: { key },
         headers,
       });
-
-      const sessionObj = {
-        connection: {
-          path: session?.connection?.path || `/live/${key}`,
-          args: session?.connection?.args || '',
-          sId: session?.connection?.sId || ''
-        },
-        timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
-      };
-
-      this.sessions.set(key, sessionObj);
     } catch(err: unknown) {
-      console.log(`[AUTH][onValidateLoop] request failed`, err);
+      const finalErr = axios.isAxiosError(err) ? err.toJSON() : err;
+      console.log(`[AUTH][onValidateLoop] request failed`, finalErr);
 
       if (session) {
         this.RTMPSessionManager.destroy(session.connection.path);
         this.sessions.delete(key);
       }
+      return;
     }
+
+    const sessionObj = {
+      connection: {
+        path: session?.connection?.path || `/live/${key}`,
+        args: session?.connection?.args || '',
+        sId: session?.connection?.sId || ''
+      },
+      timer: setTimeout(this.onValidateLoop.bind(this, key), this.config.auth.validate_interval * 1000)
+    };
+
+    this.sessions.set(key, sessionObj);
   }
 
   onPublish(path: string, args: string, api: { sId: string }): void {
