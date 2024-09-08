@@ -10,7 +10,13 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-      - run: apt update && apt install -y ffmpeg
+      - uses: FedericoCarboni/setup-ffmpeg@v3
+        id: setup-ffmpeg
+        with:
+          ffmpeg-version: release
+          # As of version 3 of this action, builds are no longer downloaded from GitHub
+          # except on Windows: https://github.com/GyanD/codexffmpeg/releases.
+          github-token: ${{ github.server_url == 'https://github.com' && github.token || '' }}
       - run: npm ci
       - run: npm run build
       - run: npm run lint
